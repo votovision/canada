@@ -2,6 +2,8 @@
  * Entrées du modèle tirées du dépôt de données votovision/data (clone voisin
  * ../data, ou chemin donné en argument) :
  *  - data/ca_national_polls.json : sondages nationaux fédéraux ;
+ *  - data/ca_regional_polls.json : ventilations régionales des sondages
+ *    fédéraux, transcrites des rapports des sondeurs (data/sources/rapports/ca/) ;
  *  - data/ca_riding_results.json : résultats officiels d'Élections Canada par
  *    circonscription et par parti (2015, 2019, 2021 sur la carte 2013 ; 2021
  *    transposé et 2025 sur la carte 2023) ;
@@ -40,6 +42,26 @@ const ecrire = (nom, v) => { writeFileSync(new URL(nom, OUT), JSON.stringify(v))
 const sondages = lireCsv(join(DATA, "csv", "sondages.csv")).filter((s) => s.juridiction === "ca-federal" && s.region === "National");
 const parts = new Map();
 for (const p of lireCsv(join(DATA, "csv", "parts.csv"))) { if (!parts.has(p.id)) parts.set(p.id, []); parts.get(p.id).push(p); }
+// Ventilations régionales : les lignes d'un même rapport transcrit (provenance
+// rapport:ca/…) forment un sondage. Le total national manque quand la vigile a
+// gardé la version Wikipédia du même sondage : on la reprend par firme et date.
+const tousFederaux = lireCsv(join(DATA, "csv", "sondages.csv")).filter((s) => s.juridiction === "ca-federal");
+const partsDe = (s) => Object.fromEntries((parts.get(s.id) ?? []).map((p) => [p.parti, Number(p.pct)]));
+const rapports = new Map();
+for (const s of tousFederaux.filter((x) => x.provenance.startsWith("rapport:ca/"))) {
+  if (!rapports.has(s.provenance)) rapports.set(s.provenance, []);
+  rapports.get(s.provenance).push(s);
+}
+const milieu = (a, b) => (a ? new Date((Date.parse(a) + Date.parse(b)) / 2).toISOString().slice(0, 10) : b);
+ecrire("ca_regional_polls.json", [...rapports.values()].map((lignes) => {
+  const ref = lignes[0];
+  const national = lignes.find((s) => s.region === "National")
+    ?? sondages.find((s) => s.firme === ref.firme && s.date_fin === ref.date_fin);
+  const groups = Object.fromEntries(lignes.filter((s) => s.region !== "National").map((s) => [s.region, { n: s.n ? Number(s.n) : null, parts: partsDe(s) }]));
+  if (national) groups.National = { n: national.n ? Number(national.n) : null, parts: partsDe(national) };
+  return { url: ref.reference, firm: ref.firme, midDate: milieu(ref.date_debut, ref.date_fin), n: national?.n ? Number(national.n) : null, groups };
+}).sort((a, b) => a.midDate.localeCompare(b.midDate)));
+
 ecrire("ca_national_polls.json", sondages.flatMap((s) => (parts.get(s.id) ?? []).map((p) => ({
   poll_id: s.id, region_code: "National", firm: s.firme, poll_date: s.date_fin, sample_size: s.n ? Number(s.n) : null,
   party_code: p.parti, pct_reported: Number(p.pct), n_decided: s.n_decides ? Number(s.n_decides) : null,

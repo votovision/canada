@@ -22,7 +22,7 @@ npm run donnees      # ../data/csv -> data/*.json
 npm run projection   # projection courante -> data/ca_projection.json, data/ca_dashboard.json
 ```
 
-Les outils de validation de la couche régionale utilisent des ventilations régionales historiques qui ne sont pas republiées ; ils les lisent dans `../data/prive/` lorsqu'il existe.
+Les ventilations régionales des sondages fédéraux (Atlantique, Québec, Ontario, Manitoba-Saskatchewan, Alberta, Colombie-Britannique) sont transcrites des rapports des sondeurs dans le dépôt de données (`../data/sources/rapports/ca/`, un fichier par sondage, avec sa source) ; `npm run donnees` les exporte dans `data/ca_regional_polls.json`. La projection courante en tire ses cibles régionales, et les outils de validation, le biais régional des sondages aux élections passées.
 
 ## Licence
 
